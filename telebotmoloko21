@@ -1,0 +1,133 @@
+import telebot
+import random
+from telebot import types
+import sqlite3
+
+conn = sqlite3.connect('players.db', check_same_thread=False)
+cur = conn.cursor()
+query = 'CREATE TABLE IF NOT EXISTS players (id INT NOT NULL PRIMARY KEY , money INT, taxes INT, cases INT)'
+cur.execute(query)
+money = 50
+taxes = 0
+cases = 0
+win = 0
+poll = True
+bot = telebot.TeleBot('2059132925:AAFZD8qorXhdm9SsAIl-Izbuje4ZeWQ8A-I')
+
+
+@bot.message_handler(commands=['save'])
+def save(message):
+    global money
+    global taxes
+    global cases
+    user = [message.chat.id, money, taxes, cases]
+
+    cur.execute('SELECT * FROM players WHERE id = ?', [user[0]])
+    rows = cur.fetchall()
+    if len(rows) == 0:
+        cur.execute('INSERT INTO players VALUES(?, ?, ?, ?)', user)
+    else:
+        cur.execute('UPDATE players SET money = ?, taxes = ?, cases = ? WHERE id = ?',
+                    [user[1], user[2], user[3], user[0]])
+
+    conn.commit()
+
+
+@bot.message_handler(commands=['load'])
+def load(message):
+    global money
+    global taxes
+    global cases
+    cur.execute('SELECT * FROM players WHERE id = ?', [message.chat.id])
+    rows = cur.fetchall()
+    if len(rows) == 0:
+        bot.send_message(message.chat.id, 'нет сохранеиня')
+    else:
+        money = rows[0][1]
+        taxes = rows[0][2]
+        cases = rows[0][3]
+
+
+@bot.message_handler(commands=['info'])
+def info(message):
+    global money
+    global taxes
+    global cases
+    bot.send_message(message.chat.id, 'Деньги')
+    bot.send_message(message.chat.id, money)
+    bot.send_message(message.chat.id, 'Ходов до налога')
+    bot.send_message(message.chat.id, 8 - taxes)
+    bot.send_message(message.chat.id, 'Кейсов')
+    bot.send_message(message.chat.id, cases)
+
+
+@bot.message_handler(commands=['help'])
+def help(message):
+    global money
+    global taxes
+    global cases
+    bot.send_message(message.chat.id,
+                     '/help Для помощи по командам, /info Выводит информацию, /buycase Купить кейс, /opencase Открыть кейс, /save для сохранения, /load для загрузки сохранения')
+
+
+@bot.message_handler(commands=['opencase'])
+def opencase(message):
+    global money
+    global taxes
+    global cases
+    global win
+
+    if cases == 0:
+        bot.send_message(message.chat.id, 'У тебя нет кейса.')
+    else:
+        cases -= 1
+        random1 = random.randint(1, 100)
+        random2 = random.randint(1, 150)
+        if random1 == 1:
+            money += 200
+            win = 200
+        elif random1 <= 5:
+            money += 125
+            win = 125
+        elif random1 <= 20:
+            money += 100
+            win = 100
+        elif random1 <= 35:
+            money += 65
+            win = 65
+        elif random1 <= 100:
+            money += 40
+            win = 40
+        if random2 == 1:
+            money -= 300
+            win -= 300
+        bot.send_message(message.chat.id, win)
+        bot.send_message(message.chat.id, 'выигрыш')
+    taxes += 1
+    win = 0
+    if taxes == 8:
+        taxes = 0
+        money -= 200
+        bot.send_message(message.chat.id, 'налог -200')
+    if money <= 0 and cases == 0:
+        bot.send_message(message.chat.id, 'Вы Проиграли')
+        poll = False
+
+
+@bot.message_handler(commands=['buycase'])
+def buycase(message):
+    global money
+    global taxes
+    global cases
+    if money >= 25:
+        cases += 1
+        money -= 25
+        bot.send_message(message.chat.id, 'Вы успешно купили кейс')
+    else:
+        bot.send_message(message.chat.id, 'Не хватает денег.')
+    if money <= 0 and cases == 0:
+        bot.send_message(message.chat.id, 'Вы Проиграли')
+        poll = False
+
+
+bot.polling(none_stop=poll)
